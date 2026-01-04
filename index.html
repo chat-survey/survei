@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>Chat Santai</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background-color: #e5ddd5;
+  background-image:
+    radial-gradient(circle at 10px 10px, rgba(255,255,255,0.15) 2px, transparent 0),
+    radial-gradient(circle at 30px 30px, rgba(255,255,255,0.1) 2px, transparent 0);
+  background-size: 60px 60px;
+}
+
+/* HEADER */
+.header {
+  background: #075E54;
+  color: white;
+  padding: 12px;
+}
+.header .name {
+  font-weight: bold;
+  font-size: 15px;
+}
+.header .status {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* CHAT */
+.chat {
+  max-width: 480px;
+  margin: auto;
+  padding: 15px;
+  height: calc(100vh - 56px);
+  overflow-y: auto;
+}
+
+.bubble {
+  background: #ffffff;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  max-width: 80%;
+  font-size: 14px;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.08);
+}
+.me {
+  background: #dcf8c6;
+  margin-left: auto;
+}
+.time {
+  font-size: 10px;
+  color: #666;
+  text-align: right;
+  margin-top: 4px;
+}
+
+/* INPUT */
+select, input {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+button {
+  width: 100%;
+  padding: 14px;
+  background: #25D366;
+  border: none;
+  border-radius: 30px;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  margin: 20px 0;
+}
+</style>
+</head>
+
+<body>
+
+<div class="header">
+  <div class="name"></div>
+  <div class="status">online</div>
+</div>
+
+<div class="chat" id="chat"></div>
+
+<audio id="notif" src="https://assets.mixkit.co/sfx/preview/mixkit-message-pop-alert-2354.mp3"></audio>
+
+<script>
+/* ================= CONFIG ================= */
+const SHEET_API = "https://script.google.com/macros/s/AKfycbxsKuCGKxH0hY0Kqc9kdx0lbF85cxDBWhc046hXj5fdduu_ufODeGwz3pnIVgdsiXMr/exec";
+
+const params = new URLSearchParams(window.location.search);
+const WA_TUJUAN = params.get("wa");
+if (!WA_TUJUAN) {
+  document.body.innerHTML = `
+    <div style="padding:40px;font-family:Arial;text-align:center">
+      <h3>Link tidak valid</h3>
+      <p>Silakan minta link resmi dari leader Anda.</p>
+    </div>`;
+  throw new Error("WA tujuan tidak ditemukan");
+}
+
+const LEADER = params.get("leader") || "Leader";
+
+document.querySelector(".name").innerText = "Chat dengan " + LEADER;
+
+/* ================ CHAT LOGIC ================ */
+let step = 0;
+let data = {};
+let sent = false;
+
+const questions = [
+  { id: "nama", text: "Hai 😊 sebelum lanjut, boleh kenalan dulu?\nNamanya siapa?" },
+
+  { id: "produk", text: "Kalau soal produk, kamu lebih ke arah mana nih?",
+    options: [
+      "Masih penasaran",
+      "Mau coba dulu",
+      "Siap pakai rutin",
+      "Sudah pakai & cocok",
+      "Sangat percaya produknya"
+    ]
+  },
+
+  { id: "waktu", text: "Dalam keseharian, kira-kira waktu luang kamu bagaimana?",
+    options: [
+      "Lagi super sibuk",
+      "Ada sedikit waktu",
+      "Sekitar 15–30 menit",
+      "Lebih dari 30 menit",
+      "Cukup fleksibel"
+    ]
+  },
+
+  { id: "belajar", text: "Kalau belajar hal baru, biasanya kamu tipe yang bagaimana?",
+    options: [
+      "Kurang suka",
+      "Kalau perlu saja",
+      "Pelan-pelan",
+      "Aktif belajar",
+      "Suka banget belajar"
+    ]
+  },
+
+  { id: "mental", text: "Kalau ada proses yang butuh waktu, kamu biasanya…",
+    options: [
+      "Pengen cepat",
+      "Kadang naik turun",
+      "Realistis",
+      "Sabar & konsisten",
+      "Siap jangka panjang"
+    ]
+  },
+
+  { id: "komitmen", text: "Kalau sudah mulai sesuatu, biasanya kamu?",
+    options: [
+      "Coba-coba",
+      "Lihat situasi",
+      "Jalan pelan",
+      "Siap dibimbing",
+      "Kalau cocok, serius"
+    ]
+  }
+];
+
+function now() {
+  return new Date().toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"});
+}
+
+function play() {
+  document.getElementById("notif").play();
+}
+
+function bubble(text, me=false) {
+  const b = document.createElement("div");
+  b.className = "bubble" + (me ? " me" : "");
+  b.innerHTML = text + `<div class="time">${now()}</div>`;
+  chat.appendChild(b);
+  play();
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function ask() {
+  if (step >= questions.length) return finish();
+  bubble(questions[step].text);
+
+  setTimeout(() => {
+    if (!questions[step].options) {
+      bubble(`<input placeholder="ketik lalu Enter" onkeydown="if(event.key==='Enter')save(this.value)">`, true);
+    } else {
+      let s = `<select onchange="save(this.selectedIndex)">`;
+      s += `<option value="">-- pilih jawaban --</option>`;
+      questions[step].options.forEach(o => s += `<option>${o}</option>`);
+      s += `</select>`;
+      bubble(s, true);
+    }
+  }, 600);
+}
+
+function save(val) {
+  if (val === "" || val === null) return;
+  data[questions[step].id] = isNaN(val) ? val : Number(val);
+  step++;
+  ask();
+}
+
+function finish() {
+  if (sent) return;
+  sent = true;
+
+  const total =
+    (data.produk||0)+(data.waktu||0)+(data.belajar||0)+(data.mental||0)+(data.komitmen||0);
+
+  const kategori = total >= 20
+    ? "SIAP JALANKAN BISNIS"
+    : "LEBIH COCOK JADI KONSUMEN";
+
+  bubble("Makasih ya 🙏 sudah meluangkan waktu.");
+  bubble("Jawaban kamu membantu kami ngobrol lebih nyaman 😊");
+
+  fetch(SHEET_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      leader: LEADER,
+      nama: data.nama,
+      skor: total,
+      kategori: kategori,
+      wa: WA_TUJUAN,
+      waktu: new Date().toLocaleString("id-ID")
+    })
+  });
+
+  const msg =
+`Hasil Survey 
+Nama: ${data.nama}
+Skor: ${total}
+Kategori: ${kategori}`;
+
+  const btn = document.createElement("button");
+  btn.innerText = "Kirim ke WhatsApp";
+  btn.onclick = () => window.open(
+    "https://wa.me/" + WA_TUJUAN + "?text=" + encodeURIComponent(msg),
+    "_blank"
+  );
+  chat.appendChild(btn);
+}
+
+ask();
+</script>
+
+</body>
+</html>
