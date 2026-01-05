@@ -93,7 +93,7 @@ button {
 
 <script>
 /* ================= CONFIG ================= */
-const SHEET_API = "https://script.google.com/macros/s/AKfycbxsKuCGKxH0hY0Kqc9kdx0lbF85cxDBWhc046hXj5fdduu_ufODeGwz3pnIVgdsiXMr/exec";
+const SHEET_API = "AKfycbxsKuCGKxH0hY0Kqc9kdx0lbF85cxDBWhc046hXj5fdduu_ufODeGwz3pnIVgdsiXMr";
 
 const params = new URLSearchParams(window.location.search);
 const WA_TUJUAN = params.get("wa");
@@ -186,7 +186,7 @@ function finish() {
   };
 
   const msg =
-`Hasil Evaluasi
+`Hasil Survey
 Nama: ${data.nama}
 Skor: ${total}
 Kategori: ${kategori}`;
@@ -194,24 +194,31 @@ Kategori: ${kategori}`;
   const btn = document.createElement("button");
   btn.innerText = "Kirim ke WhatsApp";
 
-  btn.onclick = () => {
-    btn.innerText = "Mengirim data...";
-    btn.disabled = true;
+  btn.onclick = async () => {
+  btn.innerText = "Mengirim data...";
+  btn.disabled = true;
 
-    fetch(SHEET_API, {
+  try {
+    const res = await fetch(SHEET_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      keepalive: true,
       body: JSON.stringify(payload)
-    }).finally(() => {
-      setTimeout(() => {
-        window.open(
-          "https://wa.me/" + WA_TUJUAN + "?text=" + encodeURIComponent(msg),
-          "_blank"
-        );
-      }, 700);
     });
-  };
+
+    const result = await res.json();
+    console.log("SERVER:", result);
+
+  } catch (err) {
+    console.error("FETCH ERROR", err);
+  }
+
+  setTimeout(() => {
+    window.open(
+      "https://wa.me/" + WA_TUJUAN + "?text=" + encodeURIComponent(msg),
+      "_blank"
+    );
+  }, 800);
+};
 
   chat.appendChild(btn);
 }
